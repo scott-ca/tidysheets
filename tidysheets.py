@@ -32,22 +32,18 @@ import tkinter.filedialog as fd
 from copy import deepcopy
 
 """
-Current Version 1.0
+Current Version 1.1
 - tidysheets cleans files of unwanted data from cells in a csv file. By default it removes leading/trailing spaces and forces lowercase in all cells. Has the additional option of forcing uppercase on cells over as well as dissabling any of the default cleaning options.
 - You can create and load json file via GUI for quicker future use or via CLI for automated use of predefined settings and files.
 
-Change Log 1.0:
-- Added GUI
-- Added ability to load preferences and predetermined files from json
-- Added ability to drag files directly onto the executable if python file is compiled.
-- Added option to force everything to capital letters.
-- Updated display for default options to documentation and UI.
+Change Log 1.1:
+- Add functionality to limit the scope to specific columns vs the whole file.
 
 USAGE:
 - If run from the CLI you have three options. 
--- 1) Run it using using the --load_json flag and providing the path to the JSON file which will preload all the preferred settings and files and automatically execute. 
--- 2) You can use flag --file_path followed by the list of files to be cleaned. It will use the default settings.
--- 3) You can use both the --load_json and --file_path flags. It will use the settings AND the list of files from the json in addition to adding any addition files listed and apply the same settings listed in the json to the new files.
+- 1) Run it using using the --load_json flag and providing the path to the JSON file which will preload all the preferred settings and files and automatically execute. 
+- 2) You can use flag --file_path followed by the list of files to be cleaned. It will use the default settings.
+- 3) You can use both the --load_json and --file_path flags. It will use the settings AND the list of files from the json in addition to adding any addition files listed and apply the same settings listed in the json to the new files.
 
 - If run without any paramaters it will launch the application in GUI mode allowing you to select the required files and settings as well as create a JSON file for future use containing predefined settings and/or list of files.
 
@@ -62,14 +58,14 @@ To DO:
 - Add in optional arguments to tidy additional data (IE remove numbers)
 - Add removing special encoding characters for things like UTF-8
 - Add in support for cleaning data from SQLite databases.
-- Add functionality to limit the scope to specific columns vs the whole sheet.
+
 
 Known Bugs:
 - None
 """
 
 root = Tk()
-root.title('Tidy Sheet    v1.00')
+root.title('Tidy Sheet    v1.1')
 
 class JSettings:
     """
@@ -207,15 +203,13 @@ class InputFiles:
                     
                     f.close()
                     
-                current_column.append(StringVar()) 
-                current_column[i].set(headers[0])
+                current_column.append(StringVar())
+                current_column[i].set("whole_file")
                 choices = set(headers)
-
-                # Below code and some of the above code used for future functionality for allowing you to specify which columns to clean vs doing the whole spreadsheet 
-
-                #popupMenu = OptionMenu(frame, current_column[i], *choices)
-                #Label(frame, text="Column Header").pack
-                #popupMenu.pack()#side = BOTTOM
+                choices.add("whole_file")
+                popupMenu = OptionMenu(frame, current_column[i], *choices)
+                Label(frame, text="Column Header").pack
+                popupMenu.pack()#side = BOTTOM
 
 
 
@@ -232,47 +226,56 @@ class ProcessFiles:
         """This function is for processing the files and comparing the data based on the settings that were previously chosen."""
 
 
-        for eachFile in all_files.fileList:
+        for i, eachFile in enumerate(all_files.fileList):
             df = pd.read_csv(eachFile, dtype = str)
             if clean_spaces_v.get() == 1:
-                df = clean_spaces(df)
+                df = clean_spaces(df,current_column[i])
             if force_lowercase_v.get() == 1: 
-                df = force_lowercase(df)
+                df = force_lowercase(df,current_column[i])
             if force_uppercase_v.get() == 1: 
-                df = force_uppercase(df)                                                                
-            if os.path.isdir('./cleaned/'):
+                df = force_uppercase(df,current_column[i])                                                            
+            if os.path.isdir(os.path.dirname(all_files.fileList[i])+'/cleaned/'):
                 pass
             else:
-                os.makedirs('./cleaned/')
+                os.makedirs(os.path.dirname(all_files.fileList[i])+'/cleaned/')
             df.to_csv(str(os.path.dirname(eachFile)) + '/cleaned/' + str(os.path.basename(eachFile)), sep='\t', encoding='utf-8', index=False)
-
-
-def clean_spaces(dirtydf):
+        
+def clean_spaces(dirtydf,current_column_entry):
     """
     This function removes leading and trailing spaces from each of the cells.
 
     :param dirtydf: This is the dataframe containing the data to be cleaned.
     """
-    df = dirtydf.replace(r"^ +| +$", r"", regex=True)
-    return(df)
+    #still working on this one
+    if current_column_entry.get() == "whole_file":
+        dirtydf = dirtydf.replace(r"^ +| +$", r"", regex=True)
+    else:
+        dirtydf[current_column_entry.get()] = dirtydf[current_column_entry.get()].replace(r"^ +| +$", r"", regex=True) 
+    return(dirtydf)
 
-def force_lowercase(dirtydf):
+def force_lowercase(dirtydf,current_column_entry):
     """
     This function that forces each of the strings to lowercase. If the cell contains data that isn't a string it ignores the cell.
 
     :param dirtydf: This is the dataframe containing the data to be cleaned.
     """
-    df = dirtydf.applymap(lambda s: s.lower() if type(s) == str else s)
-    return(df)
+    if current_column_entry.get() == "whole_file":
+        dirtydf = dirtydf.applymap(lambda s: s.lower() if type(s) == str else s)
+    else:
+        dirtydf[current_column_entry.get()] = dirtydf[current_column_entry.get()].apply(lambda s: s.lower() if type(s) == str else s)
+    return(dirtydf)
 
-def force_uppercase(dirtydf):
+def force_uppercase(dirtydf,current_column_entry):
     """
     This function that forces each of the strings to lowercase. If the cell contains data that isn't a string it ignores the cell.
 
     :param dirtydf: This is the dataframe containing the data to be cleaned.
     """
-    df = dirtydf.applymap(lambda s: s.upper() if type(s) == str else s)
-    return(df)
+    if current_column_entry.get() == "whole_file":
+        dirtydf = dirtydf.applymap(lambda s: s.upper() if type(s) == str else s)
+    else:
+        dirtydf[current_column_entry.get()] = dirtydf[current_column_entry.get()].apply(lambda s: s.upper() if type(s) == str else s)
+    return(dirtydf)
 
 
 
